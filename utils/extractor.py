@@ -3,33 +3,105 @@ This script uses quark to convert .apk files into a features vector
 """
 
 import os
-
+import subprocess
+import json
+import csv
 
 DATASET_PATH = "../dataset"
 REPORTS_FOLDER = "./reports"
 
 
-if not os.path.exists(REPORTS_FOLDER):
-    os.mkdir(REPORTS_FOLDER)
+def generate_reports():
+    """
+    We use quark engine to generate a report that describe all the actions
+    performed by the application once installed
 
-for family in os.listdir(DATASET_PATH):
+    This function saves the report in a folder into REPORTS_FOLDER which
+    represents the malware's family.
 
-    if family == "README.md":
-        continue
+    """
 
-    report_family_path = os.path.join(REPORTS_FOLDER, family)
+    proc = []
 
-    if not os.path.exists(report_family_path):
-        os.mkdir(os.path.join(REPORTS_FOLDER, family))
+    if not os.path.exists(REPORTS_FOLDER):
+        os.mkdir(REPORTS_FOLDER)
 
-    for apk in os.listdir(os.path.join(DATASET_PATH, family)):
+    for family in os.listdir(DATASET_PATH):
 
-        apk_path = os.path.join(DATASET_PATH, family, apk)
-        report_path = os.path.join(report_family_path, f"{apk}.json")
+        if family in ["README.md", "dataset.csv"]:
+            continue
 
-        os.system(
-            "quark -a {} -o {}".format(
-                apk_path,
-                report_path,
-            ),
-        )
+        report_family_path = os.path.join(REPORTS_FOLDER, family)
+
+        if not os.path.exists(report_family_path):
+            os.mkdir(os.path.join(REPORTS_FOLDER, family))
+
+        for apk in os.listdir(os.path.join(DATASET_PATH, family)):
+
+            apk_path = os.path.join(DATASET_PATH, family, apk)
+            report_path = os.path.join(report_family_path, f"{apk}.json")
+
+            proc.append(
+                subprocess.Popen(["quark", "-a", apk_path, "-o", report_path]),
+            )
+
+    return proc
+
+
+def extract_features(filepath: str) -> list():
+    """
+    Extracts all features from a single file.
+    """
+
+    with open(filepath, "r") as application:
+        report = json.load(application)
+
+    features = map(
+        lambda x: x["weight"],
+        report["crimes"],
+    )
+
+    return list(features)
+
+
+def generate_vectors_dataset():
+
+    """
+    This function generate a csv file that contains all the features vectors
+    of the dataset apk.
+    """
+
+    header = ["apk", "family"] + [i for i in range(1, 205)]
+
+    with open(
+        os.path.join(DATASET_PATH, "dataset.csv"), "w", encoding="UTF8"
+    ) as dataset:
+        writer = csv.writer(dataset)
+
+        writer.writerow(header)
+
+        for family in os.listdir(REPORTS_FOLDER):
+            for report in os.listdir(os.path.join(REPORTS_FOLDER, family)):
+
+                features = extract_features(
+                    os.path.join(REPORTS_FOLDER, family, report),
+                )
+
+                writer.writerow([report.split(".json")[0], family] + features)
+
+
+procs = generate_reports()
+
+for i in procs:
+    i.wait()
+
+# now we are ready to generate the dataset
+
+generate_vectors_dataset()
+
+
+# remove useless files
+
+os.system(f"rm -r {REPORTS_FOLDER}")
+
+exit(0)
