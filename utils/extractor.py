@@ -45,8 +45,11 @@ def generate_reports():
                 subprocess.Popen(["quark", "-a", apk_path, "-o", report_path]),
             )
 
-    return proc
-
+            if len(proc) > 2:
+                for i in proc:
+                    i.wait()
+                
+                proc.clear()
 
 def extract_features(filepath: str) -> list():
     """
@@ -90,15 +93,9 @@ def generate_vectors_dataset():
                 writer.writerow([report.split(".json")[0], family] + features)
 
 
-procs = generate_reports()
-
-for i in procs:
-    i.wait()
-
-# now we are ready to generate the dataset
+generate_reports()
 
 generate_vectors_dataset()
-
 
 # remove useless files
 
