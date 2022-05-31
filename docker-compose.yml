@@ -1,9 +1,9 @@
 version: "3.9"
 services:
   fluentd:
-    image: "fluentd:latest"
+    build: ./fluentd
     environment:
-      - FLUENTD_CONF=fluentd.conf
+      - FLUENTD_CONF=fluent.conf
     volumes:
       - ./fluentd:/fluentd/etc
     ports:
