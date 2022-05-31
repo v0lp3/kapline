@@ -1,0 +1,10 @@
+version: "3.9"
+services:
+  fluentd:
+    build: ./fluentd
+    environment:
+      - FLUENTD_CONF=fluent.conf
+    volumes:
+      - ./fluentd:/fluentd/etc
+    ports:
+      - "9880:9880"
