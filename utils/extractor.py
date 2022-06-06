@@ -9,6 +9,7 @@ import csv
 
 DATASET_PATH = "../dataset"
 REPORTS_FOLDER = "./reports"
+RULES_PATH = os.path.expanduser('~') + "/.quark-engine/quark-rules/rules"
 
 
 def generate_reports():
@@ -41,6 +42,10 @@ def generate_reports():
             apk_path = os.path.join(DATASET_PATH, family, apk)
             report_path = os.path.join(report_family_path, f"{apk}.json")
 
+            if os.path.exists(report_path):
+                # already analyzed, skip
+                continue
+
             proc.append(
                 subprocess.Popen(["quark", "-a", apk_path, "-o", report_path]),
             )
@@ -48,8 +53,20 @@ def generate_reports():
             if len(proc) > 2:
                 for i in proc:
                     i.wait()
-                
+
                 proc.clear()
+
+
+def filter_crime(crime):
+    """
+    Parse a crime: identify the matched rule number and the score
+    """
+
+    rule = int(crime["rule"].split(".json")[0])
+    weight = crime["weight"]
+
+    return (rule, weight)
+
 
 def extract_features(filepath: str) -> list():
     """
@@ -59,12 +76,11 @@ def extract_features(filepath: str) -> list():
     with open(filepath, "r") as application:
         report = json.load(application)
 
-    features = map(
-        lambda x: x["weight"],
-        report["crimes"],
-    )
+    features = [filter_crime(crime) for crime in report["crimes"]]
 
-    return list(features)
+    features.sort(key=lambda x: x[0])
+
+    return [crime_score[1] for crime_score in features]
 
 
 def generate_vectors_dataset():
@@ -74,7 +90,9 @@ def generate_vectors_dataset():
     of the dataset apk.
     """
 
-    header = ["apk", "family"] + [i for i in range(1, 205)]
+    rules_number = len(os.listdir(RULES_PATH)) + 1
+
+    header = ["apk", "family"] + [i for i in range(1, rules_number)]
 
     with open(
         os.path.join(DATASET_PATH, "dataset.csv"), "w", encoding="UTF8"
@@ -96,9 +114,5 @@ def generate_vectors_dataset():
 generate_reports()
 
 generate_vectors_dataset()
-
-# remove useless files
-
-os.system(f"rm -r {REPORTS_FOLDER}")
 
 exit(0)
