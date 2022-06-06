@@ -9,7 +9,7 @@ import csv
 
 DATASET_PATH = "../dataset"
 REPORTS_FOLDER = "./reports"
-RULES_PATH = "~/.quark-engine/quark-rules/rules"
+RULES_PATH = os.path.expanduser('~') + "/.quark-engine/quark-rules/rules"
 
 
 def generate_reports():
@@ -80,7 +80,7 @@ def extract_features(filepath: str) -> list():
 
     features.sort(key=lambda x: x[0])
 
-    return [crime_score for crime_score in features]
+    return [crime_score[1] for crime_score in features]
 
 
 def generate_vectors_dataset():
@@ -90,7 +90,7 @@ def generate_vectors_dataset():
     of the dataset apk.
     """
 
-    rules_number = len(os.listdir(RULES_PATH))
+    rules_number = len(os.listdir(RULES_PATH)) + 1
 
     header = ["apk", "family"] + [i for i in range(1, rules_number)]
 
