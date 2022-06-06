@@ -115,8 +115,4 @@ generate_reports()
 
 generate_vectors_dataset()
 
-# remove useless files
-
-os.system(f"rm -r {REPORTS_FOLDER}")
-
 exit(0)
