@@ -48,8 +48,20 @@ def generate_reports():
             if len(proc) > 2:
                 for i in proc:
                     i.wait()
-                
+
                 proc.clear()
+
+
+def filter_crime(crime):
+    """
+    Parse a crime: identify the matched rule number and the score
+    """
+
+    rule = int(crime["rule"].split(".json")[0])
+    weight = crime["weight"]
+
+    return (rule, weight)
+
 
 def extract_features(filepath: str) -> list():
     """
@@ -59,12 +71,11 @@ def extract_features(filepath: str) -> list():
     with open(filepath, "r") as application:
         report = json.load(application)
 
-    features = map(
-        lambda x: x["weight"],
-        report["crimes"],
-    )
+    features = [filter_crime(crime) for crime in report["crimes"]]
 
-    return list(features)
+    features.sort(key=lambda x: x[0])
+
+    return [crime_score for crime_score in features]
 
 
 def generate_vectors_dataset():
