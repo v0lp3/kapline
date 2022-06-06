@@ -9,6 +9,7 @@ import csv
 
 DATASET_PATH = "../dataset"
 REPORTS_FOLDER = "./reports"
+RULES_PATH = "~/.quark-engine/quark-rules/rules"
 
 
 def generate_reports():
@@ -85,7 +86,9 @@ def generate_vectors_dataset():
     of the dataset apk.
     """
 
-    header = ["apk", "family"] + [i for i in range(1, 205)]
+    rules_number = len(os.listdir(RULES_PATH))
+
+    header = ["apk", "family"] + [i for i in range(1, rules_number)]
 
     with open(
         os.path.join(DATASET_PATH, "dataset.csv"), "w", encoding="UTF8"
