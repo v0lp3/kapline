@@ -42,6 +42,10 @@ def generate_reports():
             apk_path = os.path.join(DATASET_PATH, family, apk)
             report_path = os.path.join(report_family_path, f"{apk}.json")
 
+            if os.path.exists(report_path):
+                # already analyzed, skip
+                continue
+
             proc.append(
                 subprocess.Popen(["quark", "-a", apk_path, "-o", report_path]),
             )
