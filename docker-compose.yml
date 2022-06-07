@@ -1,5 +1,36 @@
 version: "3.9"
 services:
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.2.4
+    hostname: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_SERVER_ID: "1"
+      ZOOKEEPER_HEAP_OPTS: -Xms1g -Xms1g
+
+    networks:
+      - kapnet
+
+  kafkaserver:
+    image: confluentinc/cp-kafka:6.2.4
+    hostname: kafkaserver
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 0
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafkaserver:9092
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_METADATA_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_HEAP_OPTS: -Xms1g -Xms1g
+    networks:
+      - kapnet
+
+
   fluentd:
     build: ./fluentd
     environment:
@@ -8,3 +39,27 @@ services:
       - ./fluentd:/fluentd/etc
     ports:
       - "9880:9880"
+    networks:
+      - kapnet
+    depends_on:
+      - kafkaserver
+
+  kafkaWebUI:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafkaWebUI
+    environment:
+        KAFKA_CLUSTERS_0_NAME: Apk analysis
+        KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+        KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafkaserver:9092
+        KAFKA_CLUSTERS_0_HEAP_OPTS: -Xms1g -Xms1g
+    ports: 
+        - 8080:8080
+    depends_on:
+        - kafkaserver
+    networks: 
+        - kapnet
+
+networks:
+  kapnet:
+    name: kapnet
+    driver: bridge
