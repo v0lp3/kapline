@@ -1,5 +1,6 @@
 version: "3.9"
 services:
+
   fluentd:
     build: ./fluentd
     environment:
@@ -8,3 +9,39 @@ services:
       - ./fluentd:/fluentd/etc
     ports:
       - "9880:9880"
+    networks:
+      - kapnet
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.2.4
+    hostname: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_SERVER_ID: "1"
+      ZOOKEEPER_HEAP_OPTS: -Xms1g -Xms1g
+
+    networks:
+      - kapnet
+
+  kafkaserver:
+    image: confluentinc/cp-kafka:6.2.4
+    hostname: kafkaserver
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 0
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafkaserver:9092
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_METADATA_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_HEAP_OPTS: -Xms1g -Xms1g
+    networks:
+      - kapnet
+
+networks:
+  kapnet:
+    name: kapnet
+    driver: bridge
