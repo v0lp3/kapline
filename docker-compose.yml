@@ -48,7 +48,7 @@ services:
     image: provectuslabs/kafka-ui:latest
     container_name: kafkaWebUI
     environment:
-        KAFKA_CLUSTERS_0_NAME: Apk analysis
+        KAFKA_CLUSTERS_0_NAME: ApkAnalysis
         KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
         KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafkaserver:9092
         KAFKA_CLUSTERS_0_HEAP_OPTS: -Xms1g -Xms1g
