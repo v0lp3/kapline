@@ -1,17 +1,6 @@
 version: "3.9"
 services:
 
-  fluentd:
-    build: ./fluentd
-    environment:
-      - FLUENTD_CONF=fluent.conf
-    volumes:
-      - ./fluentd:/fluentd/etc
-    ports:
-      - "9880:9880"
-    networks:
-      - kapnet
-
   zookeeper:
     image: confluentinc/cp-zookeeper:6.2.4
     hostname: zookeeper
@@ -40,6 +29,35 @@ services:
       KAFKA_HEAP_OPTS: -Xms1g -Xms1g
     networks:
       - kapnet
+
+
+  fluentd:
+    build: ./fluentd
+    environment:
+      - FLUENTD_CONF=fluent.conf
+    volumes:
+      - ./fluentd:/fluentd/etc
+    ports:
+      - "9880:9880"
+    networks:
+      - kapnet
+    depends_on:
+      - kafkaserver
+
+  kafkaWebUI:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafkaWebUI
+    environment:
+        KAFKA_CLUSTERS_0_NAME: Apk analysis
+        KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+        KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafkaserver:9092
+        KAFKA_CLUSTERS_0_HEAP_OPTS: -Xms1g -Xms1g
+    ports: 
+        - 8080:8080
+    depends_on:
+        - kafkaserver
+    networks: 
+        - kapnet
 
 networks:
   kapnet:
