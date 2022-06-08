@@ -57,6 +57,15 @@ services:
     networks: 
         - kapnet
 
+  bot:
+    build: bot
+    environment:
+      - FLUENTD_ADDRESS
+      - FLUENTD_PORT
+      - TOKEN
+    volumes:
+      - ../storage:/frontend/storage
+
 networks:
   kapnet:
     name: kapnet
