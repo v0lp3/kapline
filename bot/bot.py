@@ -30,12 +30,14 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await a.download(out=f)
 
     try:
+        userid = update.message.from_user.id
+
         requests.post(
             f"http://{FLUENTD_ADDRESS}:{FLUENTD_PORT}/apkAnalysis",
-            json={"filename": filename},
+            json={"userid": userid, "filename": filename},
         )
 
-        logger.info(f"Event for {filename} sent to fluentd")
+        logger.info(f"Event for {filename} sent to fluentd from {userid}")
 
     except Exception as e:
         logger.error(f"Error while sending event to fluentd: {e}")
