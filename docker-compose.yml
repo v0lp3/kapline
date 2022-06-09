@@ -64,7 +64,7 @@ services:
       - FLUENTD_PORT
       - TOKEN
     volumes:
-      - ../storage:/frontend/storage
+      - ./storage:/frontend/storage
 
 networks:
   kapnet:
