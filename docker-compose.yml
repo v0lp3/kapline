@@ -1,4 +1,4 @@
-version: "3.9"
+version: "3.7"
 services:
 
   zookeeper:
@@ -71,6 +71,15 @@ services:
       - 80:80
     volumes:
       - ./storage:/usr/local/apache2/htdocs
+      
+  spark:
+    build: spark
+    environment:
+      KAFKA_HOSTS=kafkaserver:9092
+    depends_on:
+      - kafkaserver
+    networks:
+      - kapnet
 
 networks:
   kapnet:
