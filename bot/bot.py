@@ -29,12 +29,16 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         a = await context.bot.get_file(update.message.document)
         await a.download(out=f)
 
-    requests.post(
-        f"http://{FLUENTD_ADDRESS}:{FLUENTD_PORT}/apkAnalysis",
-        json={"filename": filename},
-    )
+    try:
+        requests.post(
+            f"http://{FLUENTD_ADDRESS}:{FLUENTD_PORT}/apkAnalysis",
+            json={"filename": filename},
+        )
 
-    logger.info(f"Event for {filename} sent to fluentd")
+        logger.info(f"Event for {filename} sent to fluentd")
+
+    except Exception as e:
+        logger.error(f"Error while sending event to fluentd: {e}")
 
     await update.message.reply_text(MESSAGES["upload"])
 
