@@ -29,7 +29,6 @@ services:
     networks:
       - kapnet
 
-
   fluentd:
     build: ./fluentd
     environment:
@@ -46,16 +45,16 @@ services:
   kafkaUI:
     image: provectuslabs/kafka-ui:latest
     environment:
-        KAFKA_CLUSTERS_0_NAME: ApkAnalysis
-        KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
-        KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafkaserver:9092
-        KAFKA_CLUSTERS_0_HEAP_OPTS: -Xms1g -Xms1g
-    ports: 
-        - 8080:8080
+      KAFKA_CLUSTERS_0_NAME: ApkAnalysis
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafkaserver:9092
+      KAFKA_CLUSTERS_0_HEAP_OPTS: -Xms1g -Xms1g
+    ports:
+      - 8080:8080
     depends_on:
-        - kafkaserver
-    networks: 
-        - kapnet
+      - kafkaserver
+    networks:
+      - kapnet
 
   bot:
     build: bot
@@ -65,6 +64,13 @@ services:
       - TOKEN
     volumes:
       - ./storage:/frontend/storage
+
+  httpd:
+    image: httpd:latest
+    ports:
+      - 80:80
+    volumes:
+      - ./storage:/usr/local/apache2/htdocs
 
 networks:
   kapnet:
