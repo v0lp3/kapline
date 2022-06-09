@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     filename = os.urandom(10).hex()
-# 
+    
     with open(os.path.join(DOWNLOAD_PATH, filename), "wb") as f:
         a = await context.bot.get_file(update.message.document)
         await a.download(out=f)
@@ -32,6 +32,8 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     requests.post(
         f"http://{FLUENTD_ADDRESS}:{FLUENTD_PORT}/apkAnalysis", json={"filename": filename}
     )
+
+    logger.info(f"Event for {filename} sent to fluentd")
 
     await update.message.reply_text(MESSAGES["upload"])
 
