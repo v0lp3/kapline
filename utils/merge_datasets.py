@@ -18,11 +18,14 @@ for data in datasets:
 
     with open(f"../dataset/{data}.csv") as dataset:
         csv_reader = csv.reader(dataset, delimiter=",")
-        
-        for i,row in enumerate(csv_reader):
+
+        for i, row in enumerate(csv_reader):
 
             # write column name only once
             if HEADER_WRITTEN == True and i == 0:
-                continue                
+                continue
+
+            if HEADER_WRITTEN == False:
+                HEADER_WRITTEN = True
 
             dataset_writer.writerow(row)
