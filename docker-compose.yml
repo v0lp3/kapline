@@ -75,7 +75,7 @@ services:
   spark:
     build: spark
     environment:
-      KAFKA_HOSTS=kafkaserver:9092
+      KAFKA_HOSTS: kafkaserver:9092
     depends_on:
       - kafkaserver
     networks:
