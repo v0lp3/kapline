@@ -1,16 +1,15 @@
 import json
 import os
 import shutil
-import requests
 
 import pyspark
 import pyspark.sql.types as tp
+import requests
+
 from pyspark.ml import PipelineModel
-from pyspark.sql.dataframe import DataFrame
-from pyspark.sql.functions import from_json, udf, to_json, struct
-
 from pyspark.ml.linalg import Vectors, VectorUDT
-
+from pyspark.sql.dataframe import DataFrame
+from pyspark.sql.functions import from_json, struct, to_json, udf
 
 MODEL_DIR = "./model"
 KAFKA_HOSTS = os.environ["KAFKA_HOSTS"]
