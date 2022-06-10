@@ -7,9 +7,8 @@ import pyspark
 import pyspark.sql.types as tp
 from pyspark.ml import PipelineModel
 from pyspark.sql.dataframe import DataFrame
-from pyspark.sql.functions import from_json, udf
+from pyspark.sql.functions import from_json, udf, to_json, struct
 
-from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.linalg import Vectors, VectorUDT
 
 
@@ -190,5 +189,14 @@ df = (
 
 df = process_message_pointer(df)
 
+query = (
+    df.select(to_json(struct("*")).alias("value"))
+    .selectExpr("CAST(value AS STRING)")
+    .writeStream.format("kafka")
+    .option("kafka.bootstrap.servers", KAFKA_HOSTS)
+    .option("topic", "analyzed")
+    .option("checkpointLocation", "./checkpoints-api")
+    .start()
+)
 
-df.writeStream.format("console").start().awaitTermination()
+query.awaitTermination()
