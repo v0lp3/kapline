@@ -71,11 +71,13 @@ services:
       - 80:80
     volumes:
       - ./storage:/usr/local/apache2/htdocs
-      
+
   spark:
     build: spark
     environment:
-      KAFKA_HOSTS: kafkaserver:9092
+      - TOKEN
+      - FILE_HOST
+      - KAFKA_HOSTS
     depends_on:
       - kafkaserver
     networks:
