@@ -83,6 +83,15 @@ services:
     networks:
       - kapnet
 
+  elasticsearch:
+    image: elasticsearch:latest
+    container_name: elasticsearch
+    expose:
+      - 9200
+      - 9300
+    environment:
+      - discovery.type=single-node
+
 networks:
   kapnet:
     name: kapnet
