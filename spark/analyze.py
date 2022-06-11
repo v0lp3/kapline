@@ -31,7 +31,7 @@ with open("quark_labels.json", "r") as f:
 
 attributes = {
     "timestamp": tp.StructField(
-        name="timestamp", dataType=tp.TimestampType(), nullable=False
+        name="timestamp", dataType=tp.StringType(), nullable=False
     ),
     "filename": tp.StructField(
         name="filename", dataType=tp.StringType(), nullable=False
@@ -85,12 +85,12 @@ report_struct = build_struct(reports_attrs)
 
 
 """
-intermediate_struct is a struct that contains the data ready
+elastic_struct is a struct that contains the data ready
 to be saved into elastic search 
 """
 
-intermediate_attrs = ["timestamp", "md5", "features", "size", "label"]
-intermediate_struct = build_struct(intermediate_attrs)
+elastic_partial_attrs = ["timestamp", "md5", "features", "size", "label"]
+elastic_struct = build_struct(elastic_partial_attrs)
 
 
 """
@@ -100,14 +100,6 @@ label_attrs = [f"{label}_score" for label in list(quark_labels)]
 label_struct = build_struct(label_attrs)
 
 
-"""
-elastic_struct is a struct that contains the schema of data saved
-in elastic search 
-"""
-elastic_attrs = ["timestamp", "md5", "size", "label", "max_score"] + label_attrs
-elastic_struct = build_struct(elastic_attrs)
-
-
 sparkConf = (
     SparkConf()
     .set("spark.scheduler.mode", "FAIR")
@@ -115,6 +107,8 @@ sparkConf = (
     .set("es.nodes.wan.only", "true")
     .set("es.port", ELASTIC_PORT)
     .set("es.mapping.id", "md5")
+    .set("es.mapping.properties.timestamp.type", "date")
+    .set("es.mapping.properties.timestamp.format", "date_optional_time")
     .set("es.write.operation", "upsert")
 )
 
@@ -310,8 +304,9 @@ def prepare_for_elastic(df: DataFrame) -> DataFrame:
     """
     Second topic
     """
-    df = get_message(df, intermediate_struct)
+    df = get_message(df, elastic_struct)
     df = extract_statistics(df)
+    df = df.withColumnRenamed("timestamp", "@timestamp")
 
     return df
 
