@@ -12,8 +12,12 @@ from pyspark.ml.linalg import Vectors, VectorUDT
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.functions import from_json, struct, to_json, udf, aggregate, lit
 
+from pyspark.conf import SparkConf
+
 MODEL_DIR = "./model"
 KAFKA_HOSTS = os.environ["KAFKA_HOSTS"]
+ELASTIC_HOST = os.environ["ELASTIC_HOST"]
+ELASTIC_PORT = os.environ["ELASTIC_PORT"]
 FILE_HOST = os.environ["FILE_HOST"]
 
 TOKEN = os.environ["TOKEN"]
@@ -51,7 +55,13 @@ def build_struct(attrs: list) -> tp.StructType:
     struct = tp.StructType()
 
     for attr in attrs:
-        struct = struct.add(attributes[attr])
+
+        if attr not in attributes:
+            field = attributes["custom"](attr)
+        else:
+            field = attributes[attr]
+
+        struct.add(field)
 
     return struct
 
@@ -75,15 +85,44 @@ report_struct = build_struct(reports_attrs)
 
 
 """
-elastic_struct is a struct that contains the data ready
+intermediate_struct is a struct that contains the data ready
 to be saved into elastic search 
 """
 
-elastic_attrs = ["timestamp", "md5", "features", "size", "label"]
+intermediate_attrs = ["timestamp", "md5", "features", "size", "label"]
+intermediate_struct = build_struct(intermediate_attrs)
+
+
+"""
+label_struct is a struct that contains the quark-engine labels 
+"""
+label_attrs = [f"{label}_score" for label in list(quark_labels)]
+label_struct = build_struct(label_attrs)
+
+
+"""
+elastic_struct is a struct that contains the schema of data saved
+in elastic search 
+"""
+elastic_attrs = ["timestamp", "md5", "size", "label", "max_score"] + label_attrs
 elastic_struct = build_struct(elastic_attrs)
 
 
-spark = pyspark.sql.SparkSession.builder.appName("kapline").getOrCreate()
+sparkConf = (
+    SparkConf()
+    .set("spark.scheduler.mode", "FAIR")
+    .set("es.nodes", ELASTIC_HOST)
+    .set("es.nodes.wan.only", "true")
+    .set("es.port", ELASTIC_PORT)
+    .set("es.mapping.id", "md5")
+    .set("es.write.operation", "upsert")
+)
+
+spark = (
+    pyspark.sql.SparkSession.builder.appName("kapline")
+    .config(conf=sparkConf)
+    .getOrCreate()
+)
 
 spark.sparkContext.setLogLevel("ERROR")
 
@@ -243,20 +282,11 @@ def extract_statistics(df: DataFrame) -> DataFrame:
         "max_score", aggregate("features", lit(0.0), lambda acc, x: acc + x)
     )
 
-    label_scores = tp.StructType()
-
-    for label in quark_labels:
-        label_scores = label_scores.add(
-            tp.StructField(
-                name=f"{label}_score", dataType=tp.DoubleType(), nullable=False
-            )
-        )
-
     df = df.withColumn(
         "scores",
         from_json(
             partial_scores(df.features),
-            schema=label_scores,
+            schema=label_struct,
         ),
     ).select("timestamp", "md5", "size", "predictedLabel", "max_score", "scores.*")
 
@@ -280,7 +310,7 @@ def prepare_for_elastic(df: DataFrame) -> DataFrame:
     """
     Second topic
     """
-    df = get_message(df, elastic_struct)
+    df = get_message(df, intermediate_struct)
     df = extract_statistics(df)
 
     return df
@@ -315,7 +345,7 @@ query_kafka = (
     .writeStream.format("kafka")
     .option("kafka.bootstrap.servers", KAFKA_HOSTS)
     .option("topic", "analyzed")
-    .option("checkpointLocation", "./checkpoints-api")
+    .option("checkpointLocation", "./analyzed/checkpoint")
     .start()
 )
 
@@ -325,11 +355,11 @@ with some statistics
 
 The workflow is:
 
-################################
+##################################
 
 Kafka -> Spark -> Elastic Search
 
-################################
+##################################
 """
 
 df = (
@@ -341,7 +371,11 @@ df = (
 
 df = prepare_for_elastic(df)
 
-query_elastic = df.writeStream.format("console").start()
+query_elastic = (
+    df.writeStream.option("checkpointLocation", "./statistics/checkpoints")
+    .format("es")
+    .start("kaplyzed")
+)
 
 
 query_elastic.awaitTermination()
