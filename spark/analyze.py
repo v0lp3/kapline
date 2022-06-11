@@ -154,10 +154,17 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
 
 
 def predict(df: DataFrame, model: PipelineModel):
+    """
+    Uses trained model to predict malware family and send the
+    notification to the telegram user as soon as possible.
+    """
+
     @udf
     def send_telegram_notification(userid, md5, label) -> str:
         """
         Send the report to the user
+        This function doesn't change any data, returns md5 only to
+        trick pyspark lol
         """
 
         text = f"{label}"
@@ -205,17 +212,18 @@ def get_message(df: DataFrame, schema: tp.StructType) -> DataFrame:
     )
 
 
-def process_message_pointer(df: DataFrame, model: PipelineModel = trainedModel):
-    df = get_message(df, raw_data_struct)
-    df = enrich_dataframe(df)
-    df = predict(df, model)
-
-    return df
-
-
 def extract_statistics(df: DataFrame):
+    """
+    Alter the dataframe schema adding some new cols
+    based on scores from quark-engine.
+    """
+
     @udf
     def partial_scores(features):
+        """
+        Total score for one label.
+        One label can contains some rules
+        """
         scores = {}
 
         for label, value in quark_labels.items():
@@ -254,7 +262,21 @@ def extract_statistics(df: DataFrame):
     return df
 
 
+def process_message_pointer(df: DataFrame, model: PipelineModel = trainedModel):
+    """
+    First topic
+    """
+    df = get_message(df, raw_data_struct)
+    df = enrich_dataframe(df)
+    df = predict(df, model)
+
+    return df
+
+
 def prepare_for_elastic(df: DataFrame):
+    """
+    Second topic
+    """
     df = get_message(df, elastic_struct)
     df = extract_statistics(df)
 
@@ -265,9 +287,13 @@ def prepare_for_elastic(df: DataFrame):
 In the first topic we want to retrieve the file from
 the dataserver and process it to extract features
 
-The workflow is:
 
-=> kafka -> spark -> kafka
+##########################
+
+Kafka -> Spark -> Kafka
+
+##########################
+
 """
 
 df = (
@@ -296,7 +322,11 @@ with some statistics
 
 The workflow is:
 
-=> kafka -> spark -> elastic search
+################################
+
+Kafka -> Spark -> Elastic Search
+
+################################
 """
 
 df = (
