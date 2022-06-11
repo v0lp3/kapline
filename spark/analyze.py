@@ -10,7 +10,7 @@ from pyspark.ml import PipelineModel
 
 from pyspark.ml.linalg import Vectors, VectorUDT
 from pyspark.sql.dataframe import DataFrame
-from pyspark.sql.functions import from_json, struct, to_json, udf
+from pyspark.sql.functions import from_json, struct, to_json, udf, aggregate, lit
 
 MODEL_DIR = "./model"
 KAFKA_HOSTS = os.environ["KAFKA_HOSTS"]
@@ -19,31 +19,15 @@ FILE_HOST = os.environ["FILE_HOST"]
 TOKEN = os.environ["TOKEN"]
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
-QUARK_PATH = "/.quark-engine/quark-rules"
+MAX_RULES = 204
 
-"""
-Load label associated to quark-rules, so we can calc
-some stats after
-"""
-action_labels = {}
+with open("quark_labels.json", "r") as f:
+    quark_labels = json.load(f)
 
-with open(os.path.join(QUARK_PATH, "label_desc.csv"), "r") as fp:
-    for line in fp.readlines()[1:]:
-        action_labels[line.split(",")[0]] = []
-
-for rule in os.listdir(os.path.join(QUARK_PATH, "rules")):
-    with open(os.path.join(QUARK_PATH, "rules", rule)) as r:
-        tmp = json.load(r)
-
-    for i in tmp["label"]:
-        if i not in action_labels:
-            action_labels[i] = []
-
-        action_labels[i].append(int(rule.split(".json")[0]))
 
 attributes = {
     "timestamp": tp.StructField(
-        name="@timestamp", dataType=tp.TimestampType(), nullable=False
+        name="timestamp", dataType=tp.TimestampType(), nullable=False
     ),
     "filename": tp.StructField(
         name="filename", dataType=tp.StringType(), nullable=False
@@ -54,11 +38,16 @@ attributes = {
         name="features", dataType=tp.ArrayType(tp.DoubleType()), nullable=False
     ),
     "size": tp.StructField(name="size", dataType=tp.LongType(), nullable=False),
-    "label": tp.StructField(name="label", dataType=tp.StringType(), nullable=False),
+    "label": tp.StructField(
+        name="predictedLabel", dataType=tp.StringType(), nullable=False
+    ),
+    "custom": lambda x: tp.StructField(
+        name=x, dataType=tp.DoubleType(), nullable=False
+    ),
 }
 
 
-def build_struct(attrs: []) -> tp.StructType:
+def build_struct(attrs) -> tp.StructType:
     struct = tp.StructType()
 
     for attr in attrs:
@@ -90,7 +79,7 @@ elastic_struct is a struct that contains the data ready
 to be saved into elastic search 
 """
 
-elastic_attrs = raw_attrs + reports_attrs + ["label"]
+elastic_attrs = ["timestamp", "md5", "features", "size", "label"]
 elastic_struct = build_struct(elastic_attrs)
 
 
@@ -146,8 +135,8 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
 
         features.sort(key=lambda x: x[0])
 
-        # model is trained for only 204 rules :(
-        features = features[:204]
+        # model is trained for only $MAX_RULES rules :(
+        features = features[:MAX_RULES]
 
         # idk if this is the best practice but it works
         return json.dumps(
@@ -159,7 +148,7 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
 
     df = df.withColumn(
         "output", from_json(get_features(df.filename), schema=report_struct)
-    ).select("@timestamp", "filename", "userid", "md5", "output.*")
+    ).select("timestamp", "filename", "userid", "md5", "output.*")
 
     return df
 
@@ -197,9 +186,7 @@ def predict(df: DataFrame, model: PipelineModel):
         )
         .withColumn("features", to_array(df.features))
         .select(
-            "@timestamp",
-            "filename",
-            "userid",
+            "timestamp",
             "md5",
             "features",
             "size",
@@ -226,14 +213,51 @@ def process_message_pointer(df: DataFrame, model: PipelineModel = trainedModel):
     return df
 
 
-def statistics(df: DataFrame):
+def extract_statistics(df: DataFrame):
     @udf
-    def get_total_score():
-        pass
+    def partial_scores(features):
+        scores = {}
+
+        for label, value in quark_labels.items():
+            score_rule = 0
+
+            for rule in value:
+
+                if rule <= MAX_RULES:
+                    score_rule += features[rule - 1]
+
+            scores[f"{label}_score"] = score_rule
+
+        return json.dumps(scores)
+
+    df = df.withColumn(
+        "max_score", aggregate("features", lit(0.0), lambda acc, x: acc + x)
+    )
+
+    label_scores = tp.StructType()
+
+    for label in quark_labels:
+        label_scores = label_scores.add(
+            tp.StructField(
+                name=f"{label}_score", dataType=tp.DoubleType(), nullable=False
+            )
+        )
+
+    df = df.withColumn(
+        "scores",
+        from_json(
+            partial_scores(df.features),
+            schema=label_scores,
+        ),
+    ).select("timestamp", "md5", "size", "predictedLabel", "max_score", "scores.*")
+
+    return df
 
 
 def prepare_for_elastic(df: DataFrame):
     df = get_message(df, elastic_struct)
+    df = extract_statistics(df)
+
     return df
 
 
