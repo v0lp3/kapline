@@ -84,7 +84,7 @@ services:
       - kapnet
 
   elasticsearch:
-    image: elasticsearch:latest
+    image: elasticsearch:8.2.2
     container_name: elasticsearch
     expose:
       - 9200
