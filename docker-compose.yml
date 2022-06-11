@@ -78,10 +78,22 @@ services:
       - TOKEN
       - FILE_HOST
       - KAFKA_HOSTS
+      - ELASTIC_HOST
+      - ELASTIC_PORT
     depends_on:
       - kafkaserver
     networks:
       - kapnet
+
+  elasticsearch:
+    image: elasticsearch:8.2.2
+    container_name: elasticsearch
+    ports:
+      - 9200:9200
+    environment:
+      - discovery.type=single-node
+      - network.host=0.0.0.0
+      - xpack.security.enabled=false
 
 networks:
   kapnet:

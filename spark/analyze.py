@@ -7,16 +7,63 @@ import pyspark.sql.types as tp
 import requests
 
 from pyspark.ml import PipelineModel
+
 from pyspark.ml.linalg import Vectors, VectorUDT
 from pyspark.sql.dataframe import DataFrame
-from pyspark.sql.functions import from_json, struct, to_json, udf
+from pyspark.sql.functions import from_json, struct, to_json, udf, aggregate, lit
+
+from pyspark.conf import SparkConf
 
 MODEL_DIR = "./model"
 KAFKA_HOSTS = os.environ["KAFKA_HOSTS"]
+ELASTIC_HOST = os.environ["ELASTIC_HOST"]
+ELASTIC_PORT = os.environ["ELASTIC_PORT"]
 FILE_HOST = os.environ["FILE_HOST"]
 
 TOKEN = os.environ["TOKEN"]
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+
+MAX_RULES = 204
+
+with open("quark_labels.json", "r") as f:
+    quark_labels = json.load(f)
+
+
+attributes = {
+    "timestamp": tp.StructField(
+        name="timestamp", dataType=tp.TimestampType(), nullable=False
+    ),
+    "filename": tp.StructField(
+        name="filename", dataType=tp.StringType(), nullable=False
+    ),
+    "userid": tp.StructField(name="userid", dataType=tp.LongType(), nullable=False),
+    "md5": tp.StructField(name="md5", dataType=tp.StringType(), nullable=False),
+    "features": tp.StructField(
+        name="features", dataType=tp.ArrayType(tp.DoubleType()), nullable=False
+    ),
+    "size": tp.StructField(name="size", dataType=tp.LongType(), nullable=False),
+    "label": tp.StructField(
+        name="predictedLabel", dataType=tp.StringType(), nullable=False
+    ),
+    "custom": lambda x: tp.StructField(
+        name=x, dataType=tp.DoubleType(), nullable=False
+    ),
+}
+
+
+def build_struct(attrs: list) -> tp.StructType:
+    struct = tp.StructType()
+
+    for attr in attrs:
+
+        if attr not in attributes:
+            field = attributes["custom"](attr)
+        else:
+            field = attributes[attr]
+
+        struct.add(field)
+
+    return struct
 
 
 """
@@ -24,14 +71,8 @@ raw_data_struct is a struct that contains raw data. The filename is used as url 
 file and process it.
 """
 
-raw_data_struct = tp.StructType(
-    [
-        tp.StructField(name="timestamp", dataType=tp.TimestampType(), nullable=False),
-        tp.StructField(name="filename", dataType=tp.StringType(), nullable=False),
-        tp.StructField(name="userid", dataType=tp.LongType(), nullable=False),
-        tp.StructField(name="md5", dataType=tp.StringType(), nullable=False),
-    ]
-)
+raw_attrs = ["timestamp", "filename", "userid", "md5"]
+raw_data_struct = build_struct(raw_attrs)
 
 
 """
@@ -39,17 +80,49 @@ report_struct is a struct that contains some informations that
 we extract from the quark-engine report. 
 """
 
-report_struct = tp.StructType(
-    [
-        tp.StructField(
-            name="features", dataType=tp.ArrayType(tp.DoubleType()), nullable=False
-        ),
-        tp.StructField(name="size", dataType=tp.LongType(), nullable=False),
-    ]
+reports_attrs = ["features", "size"]
+report_struct = build_struct(reports_attrs)
+
+
+"""
+intermediate_struct is a struct that contains the data ready
+to be saved into elastic search 
+"""
+
+intermediate_attrs = ["timestamp", "md5", "features", "size", "label"]
+intermediate_struct = build_struct(intermediate_attrs)
+
+
+"""
+label_struct is a struct that contains the quark-engine labels 
+"""
+label_attrs = [f"{label}_score" for label in list(quark_labels)]
+label_struct = build_struct(label_attrs)
+
+
+"""
+elastic_struct is a struct that contains the schema of data saved
+in elastic search 
+"""
+elastic_attrs = ["timestamp", "md5", "size", "label", "max_score"] + label_attrs
+elastic_struct = build_struct(elastic_attrs)
+
+
+sparkConf = (
+    SparkConf()
+    .set("spark.scheduler.mode", "FAIR")
+    .set("es.nodes", ELASTIC_HOST)
+    .set("es.nodes.wan.only", "true")
+    .set("es.port", ELASTIC_PORT)
+    .set("es.mapping.id", "md5")
+    .set("es.write.operation", "upsert")
 )
 
-
-spark = pyspark.sql.SparkSession.builder.appName("kapline").getOrCreate()
+spark = (
+    pyspark.sql.SparkSession.builder.appName("kapline")
+    .config(conf=sparkConf)
+    .getOrCreate()
+)
 
 spark.sparkContext.setLogLevel("ERROR")
 
@@ -101,8 +174,8 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
 
         features.sort(key=lambda x: x[0])
 
-        # model is trained for only 204 rules :(
-        features = features[:204]
+        # model is trained for only $MAX_RULES rules :(
+        features = features[:MAX_RULES]
 
         # idk if this is the best practice but it works
         return json.dumps(
@@ -119,11 +192,18 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
     return df
 
 
-def predict(df: DataFrame, model: PipelineModel):
+def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
+    """
+    Uses trained model to predict malware family and send the
+    notification to the telegram user as soon as possible.
+    """
+
     @udf
-    def send_telegram_notification(userid, md5, label) -> str:
+    def send_telegram_notification(userid: int, md5: str, label: str) -> str:
         """
         Send the report to the user
+        This function doesn't change any data, returns md5 only to
+        trick pyspark lol
         """
 
         text = f"{label}"
@@ -144,27 +224,94 @@ def predict(df: DataFrame, model: PipelineModel):
 
     df = model.transform(df)
 
-    df = df.withColumn(
-        "md5", send_telegram_notification(df.userid, df.md5, df.predictedLabel)
-    ).select(
-        "timestamp", "filename", "userid", "md5", "features", "size", "predictedLabel"
+    to_array = udf(lambda v: v.toArray().tolist(), tp.ArrayType(tp.DoubleType()))
+
+    df = (
+        df.withColumn(
+            "md5", send_telegram_notification(df.userid, df.md5, df.predictedLabel)
+        )
+        .withColumn("features", to_array(df.features))
+        .select(
+            "timestamp",
+            "md5",
+            "features",
+            "size",
+            "predictedLabel",
+        )
     )
 
     return df
 
 
-def get_message(df: DataFrame) -> DataFrame:
+def get_message(df: DataFrame, schema: tp.StructType) -> DataFrame:
     return (
         df.selectExpr("CAST(value AS STRING)")
-        .select(from_json("value", schema=raw_data_struct).alias("data"))
+        .select(from_json("value", schema=schema).alias("data"))
         .select("data.*")
     )
 
 
-def process_message_pointer(df: DataFrame, model: PipelineModel = trainedModel):
-    df = get_message(df)
+def extract_statistics(df: DataFrame) -> DataFrame:
+    """
+    Alter the dataframe schema adding some new cols
+    based on scores from quark-engine.
+    """
+
+    @udf
+    def partial_scores(features: list) -> str:
+        """
+        Total score for one label.
+        A label can contain some rules, add up all the scores
+        owned by its label
+        """
+        scores = {}
+
+        for label, value in quark_labels.items():
+            score_rule = 0
+
+            for rule in value:
+
+                if rule <= MAX_RULES:
+                    score_rule += features[rule - 1]
+
+            scores[f"{label}_score"] = score_rule
+
+        return json.dumps(scores)
+
+    df = df.withColumn(
+        "max_score", aggregate("features", lit(0.0), lambda acc, x: acc + x)
+    )
+
+    df = df.withColumn(
+        "scores",
+        from_json(
+            partial_scores(df.features),
+            schema=label_struct,
+        ),
+    ).select("timestamp", "md5", "size", "predictedLabel", "max_score", "scores.*")
+
+    return df
+
+
+def process_message_pointer(
+    df: DataFrame, model: PipelineModel = trainedModel
+) -> DataFrame:
+    """
+    First topic
+    """
+    df = get_message(df, raw_data_struct)
     df = enrich_dataframe(df)
     df = predict(df, model)
+
+    return df
+
+
+def prepare_for_elastic(df: DataFrame) -> DataFrame:
+    """
+    Second topic
+    """
+    df = get_message(df, intermediate_struct)
+    df = extract_statistics(df)
 
     return df
 
@@ -173,9 +320,13 @@ def process_message_pointer(df: DataFrame, model: PipelineModel = trainedModel):
 In the first topic we want to retrieve the file from
 the dataserver and process it to extract features
 
-The workflow is:
 
-=> kafka -> spark -> kafka
+##########################
+
+Kafka -> Spark -> Kafka
+
+##########################
+
 """
 
 df = (
@@ -188,14 +339,44 @@ df = (
 
 df = process_message_pointer(df)
 
-query = (
+query_kafka = (
     df.select(to_json(struct("*")).alias("value"))
     .selectExpr("CAST(value AS STRING)")
     .writeStream.format("kafka")
     .option("kafka.bootstrap.servers", KAFKA_HOSTS)
     .option("topic", "analyzed")
-    .option("checkpointLocation", "./checkpoints-api")
+    .option("checkpointLocation", "./analyzed/checkpoint")
     .start()
 )
 
-query.awaitTermination()
+"""
+In the second topic we want to enrich the dataframe
+with some statistics
+
+The workflow is:
+
+##################################
+
+Kafka -> Spark -> Elastic Search
+
+##################################
+"""
+
+df = (
+    spark.readStream.format("kafka")
+    .option("kafka.bootstrap.servers", KAFKA_HOSTS)
+    .option("subscribe", "analyzed")
+    .load()
+)
+
+df = prepare_for_elastic(df)
+
+query_elastic = (
+    df.writeStream.option("checkpointLocation", "./statistics/checkpoints")
+    .format("es")
+    .start("kaplyzed")
+)
+
+
+query_elastic.awaitTermination()
+query_kafka.awaitTermination()
