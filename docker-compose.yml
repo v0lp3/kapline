@@ -86,9 +86,9 @@ services:
   elasticsearch:
     image: elasticsearch:8.2.2
     container_name: elasticsearch
-    expose:
-      - 9200
-      - 9300
+    ports:
+      - 9200:9200
+      - 9300:9300
     environment:
       - discovery.type=single-node
 
