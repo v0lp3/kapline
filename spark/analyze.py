@@ -47,7 +47,7 @@ attributes = {
 }
 
 
-def build_struct(attrs) -> tp.StructType:
+def build_struct(attrs: list) -> tp.StructType:
     struct = tp.StructType()
 
     for attr in attrs:
@@ -153,14 +153,14 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
     return df
 
 
-def predict(df: DataFrame, model: PipelineModel):
+def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
     """
     Uses trained model to predict malware family and send the
     notification to the telegram user as soon as possible.
     """
 
     @udf
-    def send_telegram_notification(userid, md5, label) -> str:
+    def send_telegram_notification(userid: int, md5: str, label: str) -> str:
         """
         Send the report to the user
         This function doesn't change any data, returns md5 only to
@@ -212,17 +212,18 @@ def get_message(df: DataFrame, schema: tp.StructType) -> DataFrame:
     )
 
 
-def extract_statistics(df: DataFrame):
+def extract_statistics(df: DataFrame) -> DataFrame:
     """
     Alter the dataframe schema adding some new cols
     based on scores from quark-engine.
     """
 
     @udf
-    def partial_scores(features):
+    def partial_scores(features: list) -> str:
         """
         Total score for one label.
-        One label can contains some rules
+        A label can contain some rules, add up all the scores
+        owned by its label
         """
         scores = {}
 
@@ -262,7 +263,9 @@ def extract_statistics(df: DataFrame):
     return df
 
 
-def process_message_pointer(df: DataFrame, model: PipelineModel = trainedModel):
+def process_message_pointer(
+    df: DataFrame, model: PipelineModel = trainedModel
+) -> DataFrame:
     """
     First topic
     """
@@ -273,7 +276,7 @@ def process_message_pointer(df: DataFrame, model: PipelineModel = trainedModel):
     return df
 
 
-def prepare_for_elastic(df: DataFrame):
+def prepare_for_elastic(df: DataFrame) -> DataFrame:
     """
     Second topic
     """
@@ -340,6 +343,6 @@ df = prepare_for_elastic(df)
 
 query_elastic = df.writeStream.format("console").start()
 
-query_elastic.awaitTermination()
 
+query_elastic.awaitTermination()
 query_kafka.awaitTermination()
