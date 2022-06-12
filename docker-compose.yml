@@ -98,6 +98,14 @@ services:
     networks:
       - kapnet
 
+  grafana:
+    image: grafana/grafana
+    hostname: grafana
+    ports:
+      - 3000:3000
+    networks:
+      - kapnet
+
 networks:
   kapnet:
     name: kapnet
