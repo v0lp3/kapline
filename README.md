@@ -35,7 +35,7 @@ The pipeline is structured as follow:
 
 The bot sends a message to `fluentd` in this format:
 
-```json
+```
 {
     "userid": long,
     "filename":string,
@@ -67,7 +67,7 @@ Data processing is powered by `Apache Spark`. The workflow is:
 
 The structure of the message is the following:
 
-```json
+```
 {
     "timestamp": date,
     "md5": string,
@@ -85,7 +85,7 @@ Now the message will be enriched with some statistics:
 
 The structure of a record in elastic search is:
 
-```json
+```
 {
     "@timestamp": date,
     "calendar_score": double,
@@ -101,12 +101,15 @@ The structure of a record in elastic search is:
 
 #### Machine learning
 
+<img src="./docs/confusion_matrix.png" style="zoom: 80%;" >
+
 The dataset was generated through the script [/utils/extractor.py](./utils/extractor.py) on [Maldroid dataset](https://www.unb.ca/cic/datasets/maldroid-2020.html).
 Then a model was trained through logistic regression in which the scoring of each rule is used as a feature.
 
 You can get the jupyter notebook used for training in [spark/model_training.ipynb](./spark/model_training.ipynb)
 
 **N.B**: At the time I trained the model the rules were 204, so 204 features.
+
 
 ## Routes
 
@@ -118,6 +121,12 @@ You can get the jupyter notebook used for training in [spark/model_training.ipyn
 | Elastic Search | http://elasticsearch:9200 |
 | Grafana        | http://grafana:3000       |
 
+
+## Run
+
+```bash
+docker-compose up
+```
 
 ## Author
 
