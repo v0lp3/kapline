@@ -1,5 +1,7 @@
 # Kapline: classification and metrics for apk
 
+<img src="./docs/dashboard.png" style="zoom: 80%" >
+
 ## Briefly
 
 - Kapline is a platform, that uses machine learning, to classify `apks` (Android applications)
