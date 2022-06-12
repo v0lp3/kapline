@@ -26,10 +26,11 @@ logger = logging.getLogger(__name__)
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     filename = os.urandom(10).hex()
 
-    with open(os.path.join(DOWNLOAD_PATH, filename), "wb+") as f:
+    with open(os.path.join(DOWNLOAD_PATH, filename), "wb") as f:
         a = await context.bot.get_file(update.message.document)
         await a.download(out=f)
 
+    with open(os.path.join(DOWNLOAD_PATH, filename), "rb") as f:
         md5 = hashlib.md5(f.read()).hexdigest()
 
     try:

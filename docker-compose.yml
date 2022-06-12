@@ -87,13 +87,24 @@ services:
 
   elasticsearch:
     image: elasticsearch:8.2.2
-    container_name: elasticsearch
+    hostname: elasticsearch
     ports:
       - 9200:9200
     environment:
       - discovery.type=single-node
       - network.host=0.0.0.0
       - xpack.security.enabled=false
+      - xpack.monitoring.collection.enabled=true
+    networks:
+      - kapnet
+
+  grafana:
+    image: grafana/grafana
+    hostname: grafana
+    ports:
+      - 3000:3000
+    networks:
+      - kapnet
 
 networks:
   kapnet:
