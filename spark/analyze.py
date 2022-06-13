@@ -200,12 +200,17 @@ def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
         trick pyspark lol
         """
 
-        text = f"{label}"
+        text = f"The file with MD5 `{md5}` was classified as `{label}`"
+
+        if label == "Benign":
+            text = f"👍 *No threats found*\n\n{text}."
+        else:
+            text = f"👎 *Threat found*\n\n{text} malware.\n\n*You shouldn't install this application*, take care."
 
         data = {
             "chat_id": userid,
             "parse_mode": "MarkdownV2",
-            "text": text,
+            "text": text.replace(".", "\."),
         }
 
         requests.post(TELEGRAM_API, data)
