@@ -8,3 +8,4 @@ This folder contains the dataset used in the project.
 
 1. Put here raw data as described
 2. Run `extractor.py` contained in `../utils`
+

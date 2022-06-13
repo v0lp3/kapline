@@ -1,4 +1,4 @@
-# Kapline: classification and metrics for apk
+# Kapline: classification and metrics for apks
 
 <img src="./docs/dashboard.png" style="zoom: 80%" >
 
@@ -35,7 +35,7 @@ The pipeline is structured as follow:
 
 The bot sends a message to `fluentd` in this format:
 
-```json
+```
 {
     "userid": long,
     "filename":string,
@@ -67,7 +67,7 @@ Data processing is powered by `Apache Spark`. The workflow is:
 
 The structure of the message is the following:
 
-```json
+```
 {
     "timestamp": date,
     "md5": string,
@@ -79,13 +79,13 @@ The structure of the message is the following:
 
 Now the message will be enriched with some statistics:
 
-1. The rules are grouped by labels (refers to [quark-rules/label_desc.csv](https://github.com/quark-engine/quark-rules/blob/master/label_desc.csv))
+1. The rules are grouped by labels (refers to [quark-rules/label_desc.csv](https://github.com/quark-engine/quark-rules/blob/master/label_desc.csv) and [utils/extract\_labels.py](./utils/extract_labels.py))
 2. Some partials score are calculated (if the label contains at least 4 rules)
 3. The data is brought into elasticsearch
 
 The structure of a record in elastic search is:
 
-```json
+```
 {
     "@timestamp": date,
     "calendar_score": double,
@@ -101,6 +101,8 @@ The structure of a record in elastic search is:
 
 #### Machine learning
 
+<img src="./docs/confusion_matrix.png" style="zoom: 80%;" >
+
 The dataset was generated through the script [/utils/extractor.py](./utils/extractor.py) on [Maldroid dataset](https://www.unb.ca/cic/datasets/maldroid-2020.html).
 Then a model was trained through logistic regression in which the scoring of each rule is used as a feature.
 
@@ -108,16 +110,30 @@ You can get the jupyter notebook used for training in [spark/model_training.ipyn
 
 **N.B**: At the time I trained the model the rules were 204, so 204 features.
 
+
 ## Routes
 
-| Service        | URL                       |
-|----------------|---------------------------|
-| Bot            | @nameofthebot             |
-| htppd          | http://httpd              |
-| KafkaUI        | http://kafkaui:8080       |
-| Elastic Search | http://elasticsearch:9200 |
-| Grafana        | http://grafana:3000       |
+| Service        | URL                        |
+|----------------|----------------------------|
+| Bot            | @nameofthebot              |
+| htppd          | http://httpd               |
+| Elastic Search | https://elasticsearch:9200 |
+| Grafana        | https://grafana:3000       |
 
+
+## Run: docker-compose
+
+All environment variables in `.env` must be set before running docker-compose
+
+```bash
+cp .env.dist .env
+```
+
+Run with:
+
+```bash
+docker-compose up
+```
 
 ## Author
 

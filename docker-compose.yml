@@ -1,61 +1,85 @@
-version: "3.7"
+version: '3.7'
 services:
-
   zookeeper:
-    image: confluentinc/cp-zookeeper:6.2.4
+    image: 'confluentinc/cp-zookeeper:6.2.4'
     hostname: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_SERVER_ID: "1"
-      ZOOKEEPER_HEAP_OPTS: -Xms1g -Xms1g
+      ZOOKEEPER_SERVER_ID: '1'
+      ZOOKEEPER_HEAP_OPTS: '-Xms1g -Xms1g'
     networks:
       - kapnet
-
+      
   kafkaserver:
-    image: confluentinc/cp-kafka:6.2.4
+    image: 'confluentinc/cp-kafka:6.2.4'
     hostname: kafkaserver
     depends_on:
       - zookeeper
     environment:
       KAFKA_BROKER_ID: 0
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafkaserver:9092
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafkaserver:9092'
       KAFKA_DEFAULT_REPLICATION_FACTOR: 1
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_CONFLUENT_METADATA_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_HEAP_OPTS: -Xms1g -Xms1g
+      KAFKA_HEAP_OPTS: '-Xms1g -Xms1g'
     networks:
       - kapnet
-
+      
   fluentd:
     build: ./fluentd
     environment:
       - FLUENTD_CONF=fluent.conf
     volumes:
-      - ./fluentd:/fluentd/etc
+      - './fluentd:/fluentd/etc'
     ports:
-      - "9880:9880"
+      - '9880:9880'
     networks:
       - kapnet
     depends_on:
       - kafkaserver
-
-  kafkaUI:
-    image: provectuslabs/kafka-ui:latest
+      
+  es_certs_setup:
+    image: 'elasticsearch:8.2.2'
+    user: '0'
+    command: bash -c "chmod 777 ./bootstrap/es-init.sh && ./bootstrap/es-init.sh"
     environment:
-      KAFKA_CLUSTERS_0_NAME: ApkAnalysis
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafkaserver:9092
-      KAFKA_CLUSTERS_0_HEAP_OPTS: -Xms1g -Xms1g
-    ports:
-      - 8080:8080
-    depends_on:
-      - kafkaserver
+      - ELASTIC_PASSWORD
     networks:
       - kapnet
-
+    volumes:
+      - 'certs:/usr/share/elasticsearch/config/certs'
+      - './es-init.sh:/usr/share/elasticsearch/bootstrap/es-init.sh'
+      
+  elasticsearch:
+    image: 'elasticsearch:8.2.2'
+    hostname: elasticsearch
+    ports:
+      - '9200:9200'
+    environment:
+      - node.name=es
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=certs/es/es.key
+      - xpack.security.http.ssl.certificate=certs/es/es.crt
+      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.http.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/es/es.key
+      - xpack.security.transport.ssl.certificate=certs/es/es.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - 'xpack.license.self_generated.type=${LICENSE}'
+    networks:
+      - kapnet
+    volumes:
+      - 'certs:/usr/share/elasticsearch/config/certs'
+      - 'esdata:/usr/share/elasticsearch/data'
+      
   bot:
     build: bot
     environment:
@@ -63,50 +87,39 @@ services:
       - FLUENTD_PORT
       - TOKEN
     volumes:
-      - ./storage:/frontend/storage
-
+      - './storage:/frontend/storage'
+      
   httpd:
-    image: httpd:latest
+    image: 'httpd:latest'
     ports:
-      - 80:80
+      - '80:80'
     volumes:
-      - ./storage:/usr/local/apache2/htdocs
-
-  spark:
-    build: spark
-    environment:
-      - TOKEN
-      - FILE_HOST
-      - KAFKA_HOSTS
-      - ELASTIC_HOST
-      - ELASTIC_PORT
-    depends_on:
-      - kafkaserver
-    networks:
-      - kapnet
-
-  elasticsearch:
-    image: elasticsearch:8.2.2
-    hostname: elasticsearch
-    ports:
-      - 9200:9200
-    environment:
-      - discovery.type=single-node
-      - network.host=0.0.0.0
-      - xpack.security.enabled=false
-      - xpack.monitoring.collection.enabled=true
-    networks:
-      - kapnet
-
+      - './storage:/usr/local/apache2/htdocs'
+      
   grafana:
     image: grafana/grafana
     hostname: grafana
     ports:
-      - 3000:3000
+      - '3000:3000'
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD
+    volumes:
+      - 'gfdata:/var/lib/grafana'    
+      - 'certs:/etc/grafana/certs'
+      - './grafana/grafana.ini:/etc/grafana/grafana.ini'
     networks:
       - kapnet
+      
+volumes:
+  certs:
+    driver: local
+  esdata:
+    driver: local
+  gfdata:
+    driver: local
 
 networks:
   kapnet:
     name: kapnet
     driver: bridge
+

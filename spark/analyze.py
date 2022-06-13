@@ -18,7 +18,8 @@ MODEL_DIR = "./model"
 KAFKA_HOSTS = os.environ["KAFKA_HOSTS"]
 ELASTIC_HOST = os.environ["ELASTIC_HOST"]
 ELASTIC_PORT = os.environ["ELASTIC_PORT"]
-FILE_HOST = os.environ["FILE_HOST"]
+ELASTIC_PASSWORD = os.environ["ELASTIC_PASSWORD"]
+HTTPD_HOST = os.environ["HTTPD_HOST"]
 
 TOKEN = os.environ["TOKEN"]
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
@@ -103,9 +104,13 @@ label_struct = build_struct(label_attrs)
 sparkConf = (
     SparkConf()
     .set("spark.scheduler.mode", "FAIR")
-    .set("es.nodes", ELASTIC_HOST)
     .set("es.nodes.wan.only", "true")
+    .set("es.net.ssl", "true")
+    .set("es.net.ssl.cert.allow.self.signed", "true")
+    .set("es.nodes", ELASTIC_HOST)
     .set("es.port", ELASTIC_PORT)
+    .set("es.net.http.auth.user", "elastic")
+    .set("es.net.http.auth.pass", ELASTIC_PASSWORD)
     .set("es.mapping.id", "md5")
     .set("es.mapping.properties.timestamp.type", "date")
     .set("es.mapping.properties.timestamp.format", "date_optional_time")
@@ -140,7 +145,7 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
         """
 
         with open(filename, "wb") as tmp:
-            response = requests.get(f"http://{FILE_HOST}/{filename}").content
+            response = requests.get(f"http://{HTTPD_HOST}/{filename}").content
             tmp.write(response)
 
         os.system(f"quark -a {filename} -o {filename}.json")
@@ -200,12 +205,17 @@ def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
         trick pyspark lol
         """
 
-        text = f"{label}"
+        text = f"The file with MD5 `{md5}` was classified as `{label}`"
+
+        if label == "Benign":
+            text = f"👍 *No threats found*\n\n{text}."
+        else:
+            text = f"👎 *Threat found*\n\n{text} malware.\n\n*You shouldn't install this application*, take care."
 
         data = {
             "chat_id": userid,
             "parse_mode": "MarkdownV2",
-            "text": text,
+            "text": text.replace(".", "\."),
         }
 
         requests.post(TELEGRAM_API, data)
