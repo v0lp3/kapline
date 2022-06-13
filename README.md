@@ -122,7 +122,15 @@ You can get the jupyter notebook used for training in [spark/model_training.ipyn
 | Grafana        | http://grafana:3000       |
 
 
-## Run
+## Run: docker-compose
+
+All environment variables in `.env` must be set before running docker-compose
+
+```bash
+cp .env.dist .env
+```
+
+Run with:
 
 ```bash
 docker-compose up
