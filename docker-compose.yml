@@ -41,33 +41,6 @@ services:
     depends_on:
       - kafkaserver
       
-  kafkaUI:
-    image: 'provectuslabs/kafka-ui:latest'
-    environment:
-      KAFKA_CLUSTERS_0_NAME: ApkAnalysis
-      KAFKA_CLUSTERS_0_ZOOKEEPER: 'zookeeper:2181'
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: 'kafkaserver:9092'
-      KAFKA_CLUSTERS_0_HEAP_OPTS: '-Xms1g -Xms1g'
-    ports:
-      - '8080:8080'
-    depends_on:
-      - kafkaserver
-    networks:
-      - kapnet
-  spark:
-    build: spark
-    environment:
-      - TOKEN
-      - HTTPD_HOST
-      - KAFKA_HOSTS
-      - ELASTIC_HOST
-      - ELASTIC_PORT
-      - ELASTIC_PASSWORD
-    depends_on:
-      - kafkaserver
-    networks:
-      - kapnet
-      
   es_certs_setup:
     image: 'elasticsearch:8.2.2'
     user: '0'
@@ -105,7 +78,7 @@ services:
       - kapnet
     volumes:
       - 'certs:/usr/share/elasticsearch/config/certs'
-      - './elasticsearch/data:/usr/share/elasticsearch/data'
+      - 'esdata:/usr/share/elasticsearch/data'
       
   bot:
     build: bot
@@ -131,12 +104,16 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD
     volumes:
-      - './grafana/data:/var/lib/grafana'    
+      - 'gfdata:/var/lib/grafana'    
     networks:
       - kapnet
       
 volumes:
   certs:
+    driver: local
+  esdata:
+    driver: local
+  gfdata:
     driver: local
 
 networks:

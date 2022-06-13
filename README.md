@@ -117,7 +117,6 @@ You can get the jupyter notebook used for training in [spark/model_training.ipyn
 |----------------|----------------------------|
 | Bot            | @nameofthebot              |
 | htppd          | http://httpd               |
-| KafkaUI        | http://kafkaui:8080        |
 | Elastic Search | https://elasticsearch:9200 |
 | Grafana        | http://grafana:3000        |
 
