@@ -18,6 +18,7 @@ MODEL_DIR = "./model"
 KAFKA_HOSTS = os.environ["KAFKA_HOSTS"]
 ELASTIC_HOST = os.environ["ELASTIC_HOST"]
 ELASTIC_PORT = os.environ["ELASTIC_PORT"]
+ELASTIC_PASSWORD = os.environ["ELASTIC_PASSWORD"]
 FILE_HOST = os.environ["FILE_HOST"]
 
 TOKEN = os.environ["TOKEN"]
@@ -103,9 +104,13 @@ label_struct = build_struct(label_attrs)
 sparkConf = (
     SparkConf()
     .set("spark.scheduler.mode", "FAIR")
-    .set("es.nodes", ELASTIC_HOST)
     .set("es.nodes.wan.only", "true")
+    .set("es.net.ssl", "true")
+    .set("es.net.ssl.cert.allow.self.signed", "true")
+    .set("es.nodes", ELASTIC_HOST)
     .set("es.port", ELASTIC_PORT)
+    .set("es.net.http.auth.user", "elastic")
+    .set("es.net.http.auth.pass", ELASTIC_PASSWORD)
     .set("es.mapping.id", "md5")
     .set("es.mapping.properties.timestamp.type", "date")
     .set("es.mapping.properties.timestamp.format", "date_optional_time")
