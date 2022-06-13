@@ -79,7 +79,7 @@ The structure of the message is the following:
 
 Now the message will be enriched with some statistics:
 
-1. The rules are grouped by labels (refers to [quark-rules/label_desc.csv](https://github.com/quark-engine/quark-rules/blob/master/label_desc.csv))
+1. The rules are grouped by labels (refers to [quark-rules/label_desc.csv](https://github.com/quark-engine/quark-rules/blob/master/label_desc.csv) and [utils/extract\_labels.py](./utils/extract_labels.py))
 2. Some partials score are calculated (if the label contains at least 4 rules)
 3. The data is brought into elasticsearch
 
@@ -118,7 +118,7 @@ You can get the jupyter notebook used for training in [spark/model_training.ipyn
 | Bot            | @nameofthebot              |
 | htppd          | http://httpd               |
 | Elastic Search | https://elasticsearch:9200 |
-| Grafana        | http://grafana:3000        |
+| Grafana        | https://grafana:3000       |
 
 
 ## Run: docker-compose
