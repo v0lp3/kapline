@@ -105,6 +105,8 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD
     volumes:
       - 'gfdata:/var/lib/grafana'    
+      - 'certs:/etc/grafana/certs'
+      - './grafana/grafana.ini:/etc/grafana/grafana.ini'
     networks:
       - kapnet
       
