@@ -97,12 +97,21 @@ services:
       - xpack.monitoring.collection.enabled=true
     networks:
       - kapnet
-
+      
   grafana:
     image: grafana/grafana
     hostname: grafana
     ports:
       - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD
+ 
+  # causes a bug
+ 
+  # volumes:
+    # - ./grafana/provisioning:/etc/grafana/provisioning
+    # - ./grafana/dashboards:/etc/grafana/dashboards
+    
     networks:
       - kapnet
 

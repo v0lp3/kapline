@@ -1,0 +1,12 @@
+apiVersion: 1
+
+datasources:
+  - name: Elastic
+    type: elasticsearch
+    access: proxy
+    database: "kaplyzed"
+    url: http://elasticsearch:9200
+    jsonData:
+      interval: Daily
+      esVersion: "8.2.2"
+      timeField: "@timestamp"
