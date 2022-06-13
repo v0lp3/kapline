@@ -58,10 +58,11 @@ services:
     build: spark
     environment:
       - TOKEN
-      - FILE_HOST
+      - HTTPD_HOST
       - KAFKA_HOSTS
       - ELASTIC_HOST
       - ELASTIC_PORT
+      - ELASTIC_PASSWORD
     depends_on:
       - kafkaserver
     networks:
@@ -104,7 +105,7 @@ services:
       - kapnet
     volumes:
       - 'certs:/usr/share/elasticsearch/config/certs'
-      - 'esdata:/usr/share/elasticsearch/data'
+      - './elasticsearch/data:/usr/share/elasticsearch/data'
       
   bot:
     build: bot
@@ -129,15 +130,15 @@ services:
       - '3000:3000'
     environment:
       - GF_SECURITY_ADMIN_PASSWORD
+    volumes:
+      - './grafana/data:/var/lib/grafana'    
     networks:
       - kapnet
       
 volumes:
   certs:
     driver: local
-  esdata:
-    driver: local
-    
+
 networks:
   kapnet:
     name: kapnet
