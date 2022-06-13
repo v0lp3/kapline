@@ -113,13 +113,13 @@ You can get the jupyter notebook used for training in [spark/model_training.ipyn
 
 ## Routes
 
-| Service        | URL                       |
-|----------------|---------------------------|
-| Bot            | @nameofthebot             |
-| htppd          | http://httpd              |
-| KafkaUI        | http://kafkaui:8080       |
-| Elastic Search | http://elasticsearch:9200 |
-| Grafana        | http://grafana:3000       |
+| Service        | URL                        |
+|----------------|----------------------------|
+| Bot            | @nameofthebot              |
+| htppd          | http://httpd               |
+| KafkaUI        | http://kafkaui:8080        |
+| Elastic Search | https://elasticsearch:9200 |
+| Grafana        | http://grafana:3000        |
 
 
 ## Run: docker-compose
