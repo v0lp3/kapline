@@ -1,4 +1,4 @@
-# Kapline: classification and metrics for apk
+# Kapline: classification and metrics for apks
 
 <img src="./docs/dashboard.png" style="zoom: 80%" >
 
