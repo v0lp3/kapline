@@ -19,7 +19,7 @@ KAFKA_HOSTS = os.environ["KAFKA_HOSTS"]
 ELASTIC_HOST = os.environ["ELASTIC_HOST"]
 ELASTIC_PORT = os.environ["ELASTIC_PORT"]
 ELASTIC_PASSWORD = os.environ["ELASTIC_PASSWORD"]
-FILE_HOST = os.environ["FILE_HOST"]
+HTTPD_HOST = os.environ["HTTPD_HOST"]
 
 TOKEN = os.environ["TOKEN"]
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
@@ -145,7 +145,7 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
         """
 
         with open(filename, "wb") as tmp:
-            response = requests.get(f"http://{FILE_HOST}/{filename}").content
+            response = requests.get(f"http://{HTTPD_HOST}/{filename}").content
             tmp.write(response)
 
         os.system(f"quark -a {filename} -o {filename}.json")
