@@ -1,12 +1,12 @@
-# Kapline: classification and metrics for apks
+# Kapline: malware detection, classification and metrics for apks
 
 <img src="./docs/dashboard.png" style="zoom: 80%" >
 
 ## Briefly
 
-- Kapline is a platform, that uses machine learning, to classify `apks` (Android applications)
+- Kapline is a platform that uses machine learning to detect and classify malicious applications (only Android apk) 
 - This project is built on top of [quark-engine](https://github.com/quark-engine/quark-engine) and [quark-rules](https://github.com/quark-engine/quark-rules)
-- Kapline is a pipeline for the subjects `Technologies for Advanced Programming` and `Social Media Managment` at UniCT.
+- Kapline is a pipeline for the subjects `Technologies for Advanced Programming` and `Social Media Management` at UniCT.
 
 ## Pipeline
 
@@ -17,7 +17,7 @@ The pipeline is structured as follow:
 
 | Data              | Service                                                         |
 |-------------------|-----------------------------------------------------------------|
-| Source            | User through [Telegram Bot](https://core.telegram.org/bots/api) |
+| Source            | User via [Telegram Bot](https://core.telegram.org/bots/api)     |
 | Ingestion         | [Fluentd](https://github.com/fluent/fluentd)                    |
 | Transport         | [Apache Kafka](https://kafka.apache.org/)                       |
 | Storage (input)   | [httpd](https://github.com/elastic/elasticsearch)               |
@@ -31,7 +31,6 @@ The pipeline is structured as follow:
 
 - The frontend is provided by a telegram bot (for simplicity reasons)
 - The `telegram bot` container and the `httpd container` share a volume where the files are stored
-- There is a limit on the maximum file size that the bot can download (20 MB)
 
 The bot sends a message to `fluentd` in this format:
 
@@ -134,6 +133,14 @@ Run with:
 ```bash
 docker-compose up
 ```
+
+## How to use?
+
+Just contact the bot and send the APK(s) you want to analyze!
+
+<img src="./docs/telegram.png" style="zoom: 80%;" >
+
+**N.B.**: There is a limit on the maximum file size that the bot can download (20 MB)
 
 ## Author
 
