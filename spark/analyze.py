@@ -25,6 +25,7 @@ HTTPD_HOST = os.environ["HTTPD_HOST"]
 TOKEN = os.environ["TOKEN"]
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
+MAX_PROCESS = os.environ["MAX_PROCESS"]
 MAX_RULES = 204
 
 with open("quark_labels.json", "r") as f:
@@ -47,6 +48,7 @@ attributes = {
     "label": tp.StructField(
         name="predictedLabel", dataType=tp.StringType(), nullable=False
     ),
+    "error": tp.StructField(name="error", dataType=tp.BooleanType(), nullable=False),
     "custom": lambda x: tp.StructField(
         name=x, dataType=tp.DoubleType(), nullable=False
     ),
@@ -91,7 +93,7 @@ elastic_struct is a struct that contains the data ready
 to be saved into elastic search 
 """
 
-elastic_partial_attrs = ["timestamp", "md5", "features", "size", "label"]
+elastic_partial_attrs = ["timestamp", "md5", "features", "size", "label", "error"]
 elastic_struct = build_struct(elastic_partial_attrs)
 
 
@@ -150,7 +152,17 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
             tmp.write(response)
 
         subprocess.call(
-            ["quark", "-a", filename, "-o", f"{filename}.json"],
+            [
+                "quark",
+                "-a",
+                filename,
+                "--core-library",
+                "rizin",
+                "--multi-process",
+                MAX_PROCESS,
+                "-o",
+                f"{filename}.json",
+            ],
             shell=False,
             timeout=60 * 5,
         )
@@ -212,7 +224,7 @@ def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
     """
 
     @udf
-    def send_telegram_notification(userid: int, md5: str, label: str, size: int) -> str:
+    def send_telegram_notification(userid: int, md5: str, label: str, size: int):
         """
         This function sends the report to the telegram user and warns if an error has occurred.
         If an error has occurred the size will be -1, so we can return error = True so we can
@@ -238,7 +250,7 @@ def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
             "text": text.replace(".", "\."),
         }
 
-        requests.post(TELEGRAM_API, data)
+        a = requests.post(TELEGRAM_API, data)
 
         return error
 
@@ -255,11 +267,7 @@ def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
         send_telegram_notification(df.userid, df.md5, df.predictedLabel, df.size),
     )
 
-    df = (
-        df.filter(df.error == False)
-        .withColumn("features", to_array(df.features))
-        .select("timestamp", "md5", "features", "size", "predictedLabel")
-    )
+    df = df.withColumn("features", to_array(df.features))
 
     return df
 
@@ -324,7 +332,7 @@ def process_message_pointer(
     df = enrich_dataframe(df)
     df = predict(df, model)
 
-    return df
+    return df.select("timestamp", "md5", "features", "size", "predictedLabel", "error")
 
 
 def prepare_for_elastic(df: DataFrame) -> DataFrame:
@@ -332,6 +340,7 @@ def prepare_for_elastic(df: DataFrame) -> DataFrame:
     Second topic
     """
     df = get_message(df, elastic_struct)
+    df = df.filter(df.error == False)
     df = extract_statistics(df)
     df = df.withColumnRenamed("timestamp", "@timestamp")
 
@@ -357,7 +366,6 @@ df = (
     .option("subscribe", "apk_pointers")
     .load()
 )
-
 
 df = process_message_pointer(df)
 
