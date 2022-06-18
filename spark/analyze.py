@@ -1,6 +1,6 @@
 import json
-import os
 import subprocess
+import os
 import shutil
 
 import pyspark
@@ -25,8 +25,8 @@ HTTPD_HOST = os.environ["HTTPD_HOST"]
 TOKEN = os.environ["TOKEN"]
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
-MAX_PROCESS = os.environ["MAX_PROCESS"]
 MAX_RULES = 204
+MAX_PROCESS = os.environ["MAX_PROCESS"]
 
 with open("quark_labels.json", "r") as f:
     quark_labels = json.load(f)
@@ -48,7 +48,7 @@ attributes = {
     "label": tp.StructField(
         name="predictedLabel", dataType=tp.StringType(), nullable=False
     ),
-    "error": tp.StructField(name="error", dataType=tp.BooleanType(), nullable=False),
+    "error": tp.StructField(name="error", dataType=tp.StringType(), nullable=False),
     "custom": lambda x: tp.StructField(
         name=x, dataType=tp.DoubleType(), nullable=False
     ),
@@ -224,7 +224,9 @@ def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
     """
 
     @udf
-    def send_telegram_notification(userid: int, md5: str, label: str, size: int):
+    def send_telegram_notification(
+        userid: int, md5: str, label: str, size: int
+    ) -> bool:
         """
         This function sends the report to the telegram user and warns if an error has occurred.
         If an error has occurred the size will be -1, so we can return error = True so we can
@@ -250,7 +252,7 @@ def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
             "text": text.replace(".", "\."),
         }
 
-        a = requests.post(TELEGRAM_API, data)
+        requests.post(TELEGRAM_API, data)
 
         return error
 
@@ -267,7 +269,9 @@ def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
         send_telegram_notification(df.userid, df.md5, df.predictedLabel, df.size),
     )
 
-    df = df.withColumn("features", to_array(df.features))
+    df = df.withColumn("features", to_array(df.features)).select(
+        "timestamp", "md5", "features", "size", "predictedLabel", "error"
+    )
 
     return df
 
@@ -332,7 +336,7 @@ def process_message_pointer(
     df = enrich_dataframe(df)
     df = predict(df, model)
 
-    return df.select("timestamp", "md5", "features", "size", "predictedLabel", "error")
+    return df
 
 
 def prepare_for_elastic(df: DataFrame) -> DataFrame:
@@ -340,7 +344,7 @@ def prepare_for_elastic(df: DataFrame) -> DataFrame:
     Second topic
     """
     df = get_message(df, elastic_struct)
-    df = df.filter(df.error == False)
+    df = df.filter(df.error == "false")
     df = extract_statistics(df)
     df = df.withColumnRenamed("timestamp", "@timestamp")
 
@@ -366,6 +370,7 @@ df = (
     .option("subscribe", "apk_pointers")
     .load()
 )
+
 
 df = process_message_pointer(df)
 
