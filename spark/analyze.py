@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import shutil
 
 import pyspark
@@ -148,7 +149,7 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
             response = requests.get(f"http://{HTTPD_HOST}/{filename}").content
             tmp.write(response)
 
-        os.system(f"quark -a {filename} -o {filename}.json")
+        subprocess.call(["quark", "-a", filename, "-o", f"{filename}.json"], shell=False)
 
         with open(f"{filename}.json", "r") as report:
             filereport = json.load(report)
