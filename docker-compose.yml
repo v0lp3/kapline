@@ -40,6 +40,21 @@ services:
       - kapnet
     depends_on:
       - kafkaserver
+
+  spark:
+    build: spark
+    environment:
+      - MAX_PROCESS=8
+      - TOKEN
+      - HTTPD_HOST
+      - KAFKA_HOSTS
+      - ELASTIC_HOST
+      - ELASTIC_PORT
+      - ELASTIC_PASSWORD
+    depends_on:
+      - kafkaserver
+    networks:
+      - kapnet
       
   es_certs_setup:
     image: 'elasticsearch:8.2.2'

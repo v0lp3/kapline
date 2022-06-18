@@ -1,4 +1,5 @@
 import json
+import subprocess
 import os
 import shutil
 
@@ -25,6 +26,7 @@ TOKEN = os.environ["TOKEN"]
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
 MAX_RULES = 204
+MAX_PROCESS = os.environ["MAX_PROCESS"]
 
 with open("quark_labels.json", "r") as f:
     quark_labels = json.load(f)
@@ -46,6 +48,7 @@ attributes = {
     "label": tp.StructField(
         name="predictedLabel", dataType=tp.StringType(), nullable=False
     ),
+    "error": tp.StructField(name="error", dataType=tp.StringType(), nullable=False),
     "custom": lambda x: tp.StructField(
         name=x, dataType=tp.DoubleType(), nullable=False
     ),
@@ -90,7 +93,7 @@ elastic_struct is a struct that contains the data ready
 to be saved into elastic search 
 """
 
-elastic_partial_attrs = ["timestamp", "md5", "features", "size", "label"]
+elastic_partial_attrs = ["timestamp", "md5", "features", "size", "label", "error"]
 elastic_struct = build_struct(elastic_partial_attrs)
 
 
@@ -148,7 +151,21 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
             response = requests.get(f"http://{HTTPD_HOST}/{filename}").content
             tmp.write(response)
 
-        os.system(f"quark -a {filename} -o {filename}.json")
+        subprocess.call(
+            [
+                "quark",
+                "-a",
+                filename,
+                "--core-library",
+                "rizin",
+                "--multi-process",
+                MAX_PROCESS,
+                "-o",
+                f"{filename}.json",
+            ],
+            shell=False,
+            timeout=60 * 5,
+        )
 
         with open(f"{filename}.json", "r") as report:
             filereport = json.load(report)
@@ -167,20 +184,29 @@ def enrich_dataframe(df: DataFrame) -> DataFrame:
 
     @udf
     def get_features(filename: str) -> str:
-        report = analyze_file(filename)
 
-        features = [filter_crime(crime) for crime in report["crimes"]]
+        try:
+            report = analyze_file(filename)
 
-        features.sort(key=lambda x: x[0])
+            features = [filter_crime(crime) for crime in report["crimes"]]
 
-        # model is trained for only $MAX_RULES rules :(
-        features = features[:MAX_RULES]
+            features.sort(key=lambda x: x[0])
+
+            # model is trained for only $MAX_RULES rules :(
+            features = features[:MAX_RULES]
+            features = [crime_score[1] for crime_score in features]
+
+            size = report["size_bytes"]
+
+        except:
+            size = -1
+            features = [0] * MAX_RULES
 
         # idk if this is the best practice but it works
         return json.dumps(
             {
-                "features": [crime_score[1] for crime_score in features],
-                "size": report["size_bytes"],
+                "features": features,
+                "size": size,
             }
         )
 
@@ -198,19 +224,27 @@ def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
     """
 
     @udf
-    def send_telegram_notification(userid: int, md5: str, label: str) -> str:
+    def send_telegram_notification(
+        userid: int, md5: str, label: str, size: int
+    ) -> bool:
         """
-        Send the report to the user
-        This function doesn't change any data, returns md5 only to
-        trick pyspark lol
+        This function sends the report to the telegram user and warns if an error has occurred.
+        If an error has occurred the size will be -1, so we can return error = True so we can
+        filter this row next.
         """
 
-        text = f"The file with MD5 `{md5}` was classified as `{label}`"
+        if size == -1:
+            error = True
+            text = f"🚨 There was an error while analyzing file with MD5 `{md5}`.\n\n*Unknown threat*."
 
-        if label == "Benign":
-            text = f"👍 *No threats found*\n\n{text}."
         else:
-            text = f"👎 *Threat found*\n\n{text} malware.\n\n*You shouldn't install this application*, take care."
+            error = False
+            text = f"The file with MD5 `{md5}` was classified as `{label}`"
+
+            if label == "Benign":
+                text = f"👍 *No threats found*\n\n{text}."
+            else:
+                text = f"👎 *Threat found*\n\n{text} malware.\n\n*You shouldn't install this application*, take care."
 
         data = {
             "chat_id": userid,
@@ -220,7 +254,7 @@ def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
 
         requests.post(TELEGRAM_API, data)
 
-        return md5
+        return error
 
     to_vector = udf(lambda a: Vectors.dense(a), VectorUDT())
 
@@ -230,18 +264,13 @@ def predict(df: DataFrame, model: PipelineModel) -> DataFrame:
 
     to_array = udf(lambda v: v.toArray().tolist(), tp.ArrayType(tp.DoubleType()))
 
-    df = (
-        df.withColumn(
-            "md5", send_telegram_notification(df.userid, df.md5, df.predictedLabel)
-        )
-        .withColumn("features", to_array(df.features))
-        .select(
-            "timestamp",
-            "md5",
-            "features",
-            "size",
-            "predictedLabel",
-        )
+    df = df.withColumn(
+        "error",
+        send_telegram_notification(df.userid, df.md5, df.predictedLabel, df.size),
+    )
+
+    df = df.withColumn("features", to_array(df.features)).select(
+        "timestamp", "md5", "features", "size", "predictedLabel", "error"
     )
 
     return df
@@ -315,6 +344,7 @@ def prepare_for_elastic(df: DataFrame) -> DataFrame:
     Second topic
     """
     df = get_message(df, elastic_struct)
+    df = df.filter(df.error == "false")
     df = extract_statistics(df)
     df = df.withColumnRenamed("timestamp", "@timestamp")
 
