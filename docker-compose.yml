@@ -44,6 +44,7 @@ services:
   spark:
     build: spark
     environment:
+      - MAX_PROCESS=8
       - TOKEN
       - HTTPD_HOST
       - KAFKA_HOSTS
