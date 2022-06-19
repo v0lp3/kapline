@@ -1,12 +1,13 @@
-# Kapline: malware detection, classification and metrics for apks
+# Kapline: apks malware detection and classification with metrics display
 
 <img src="./docs/dashboard.png" style="zoom: 80%" >
 
 ## Briefly
 
 - Kapline is a platform that uses machine learning to detect and classify malicious applications (only Android apk) 
-- This project is built on top of [quark-engine](https://github.com/quark-engine/quark-engine) and [quark-rules](https://github.com/quark-engine/quark-rules)
-- Kapline is a pipeline for the subjects `Technologies for Advanced Programming` and `Social Media Management` at UniCT.
+- This is a project for the subjects `Technologies for Advanced Programming` and `Social Media Management` at UniCT.
+- The core of the project is built on top of [quark-engine](https://github.com/quark-engine/quark-engine) and [quark-rules](https://github.com/quark-engine/quark-rules)
+- Based on the dataset, the model is trained on 5 types of malware families: `Benign, Riskware, Adware, SMS, Banking`.
 
 ## Pipeline
 
